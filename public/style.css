@@ -1,0 +1,26 @@
+body {
+    margin: 0;
+    background: transparent; /* Make the background transparent */
+}
+
+#bingo-card {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.8); /* Semi-transparent background */
+    color: white;
+    padding: 20px;
+    border-radius: 10px;
+    font-size: 24px;
+    text-align: center;
+    display: none; /* Hidden by default */
+}
+
+.hidden {
+    display: none;
+}
+
+.visible {
+    display: block;
+}

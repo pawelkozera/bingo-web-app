@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bingo Card Alert</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="bingo-card" class="hidden">
+        <div class="bingo-row">B I N G O</div>
+        <div class="bingo-row">1 15 30 42 55</div>
+    </div>
+    <script src="https://www.gstatic.com/firebasejs/9.0.2/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.2/firebase-firestore.js"></script>
+    <script type="module" src="app.js"></script>
+    <script>
+        const firebaseConfig = {
+            projectId: "bingo-40cba"
+        };
+        const app = firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+    </script>
+</body>
+</html>
