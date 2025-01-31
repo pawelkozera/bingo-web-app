@@ -1,6 +1,14 @@
 body {
     margin: 0;
-    background: transparent; /* Make the background transparent */
+    background: transparent !important;
+    font-family: 'Roboto', sans-serif;
+}
+
+.hidden {
+    opacity: 0;
+    visibility: hidden;
+    transform: translate(-50%, -50%) scale(0.9);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 #bingo-card {
@@ -8,19 +16,133 @@ body {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    background: rgba(0, 0, 0, 0.8); /* Semi-transparent background */
-    color: white;
-    padding: 20px;
-    border-radius: 10px;
-    font-size: 24px;
+    background: linear-gradient(145deg, #1a1a1a, #0a0a0a);
+    color: #fff;
+    padding: 25px;
+    border-radius: 20px;
+    min-width: 500px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    border: 3px solid #ffd700;
+    opacity: 1;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.bingo-header {
+    font-family: 'Bangers', cursive;
+    font-size: 2.5rem;
+    color: #ffd700;
     text-align: center;
-    display: none; /* Hidden by default */
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+    letter-spacing: 3px;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #ffd700;
 }
 
-.hidden {
-    display: none;
+#card-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 8px;
 }
 
-.visible {
+#card-table td {
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 2px solid rgba(255, 215, 0, 0.3);
+    border-radius: 12px;
+    text-align: center;
+    vertical-align: middle;
+    transition: all 0.3s ease;
+    position: relative;
+    min-width: 100px;
+    min-height: 100px;
+}
+
+#card-table td.marked {
+    background: rgba(50, 205, 50, 0.3);
+    border-color: #32cd32;
+    transform: scale(0.95);
+}
+
+#card-table td.marked::after {
+    content: "✓";
+    position: absolute;
+    top: -10px;
+    right: -10px;
+    background: #32cd32;
+    color: white;
+    width: 25px;
+    height: 25px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+#card-table strong {
     display: block;
+    font-size: 1.2em;
+    color: #ffd700;
+    margin-bottom: 5px;
+}
+
+#username-display {
+    text-align: center;
+    margin-top: 20px;
+    font-size: 1.2em;
+    color: #32cd32;
+    font-weight: bold;
+    padding-top: 15px;
+    border-top: 1px solid rgba(255, 215, 0, 0.3);
+}
+
+#username-display::before {
+    content: "🎮 ";
+    margin-right: 8px;
+}
+
+/* Glow animation for bingo card */
+@keyframes cardGlow {
+    0% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.3); }
+    50% { box-shadow: 0 0 30px rgba(255, 215, 0, 0.5); }
+    100% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.3); }
+}
+
+#bingo-card {
+    animation: cardGlow 2s ease-in-out infinite;
+}
+
+/* Add winner overlay styles */
+#winner-overlay {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.9);
+    padding: 2rem;
+    border-radius: 15px;
+    text-align: center;
+    z-index: 1000;
+    border: 3px solid #ffd700;
+}
+
+.winner-text {
+    font-family: 'Bangers', cursive;
+    font-size: 3rem;
+    color: #ffd700;
+    text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+}
+
+.winner-user {
+    font-size: 2rem;
+    color: #32cd32;
+    margin-top: 1rem;
+}
+
+@keyframes bingoWinGlow {
+    0% { box-shadow: 0 0 20px rgba(50, 205, 50, 0.3); }
+    50% { box-shadow: 0 0 30px rgba(50, 205, 50, 0.6); }
+    100% { box-shadow: 0 0 20px rgba(50, 205, 50, 0.3); }
 }

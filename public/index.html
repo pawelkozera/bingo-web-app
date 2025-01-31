@@ -4,22 +4,127 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bingo Card Alert</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bangers&family=Roboto:wght@400;700&display=swap">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div id="bingo-card" class="hidden">
-        <div class="bingo-row">B I N G O</div>
-        <div class="bingo-row">1 15 30 42 55</div>
+        <div class="bingo-header">BINGO CARD</div>
+        <div id="username-display"></div>
+        <table id="card-table"></table>
     </div>
-    <script src="https://www.gstatic.com/firebasejs/9.0.2/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.0.2/firebase-firestore.js"></script>
-    <script type="module" src="app.js"></script>
-    <script>
+    <div id="winner-overlay" class="hidden">
+        <div class="winner-text">🎉 BINGO! 🎉</div>
+        <div class="winner-user" id="winner-name"></div>
+    </div>
+
+    <script type="module">
+        // Import Firebase modules (Modular SDK)
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+        import { getFirestore, collection, query, where, onSnapshot, doc, updateDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+        import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app-check.js";
+
         const firebaseConfig = {
-            projectId: "bingo-40cba"
+            
         };
-        const app = firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore();
+
+        // Initialize Firebase app
+        const app = initializeApp(firebaseConfig);
+
+        const appCheck = initializeAppCheck(app, {
+            provider: new ReCaptchaEnterpriseProvider(''),
+            isTokenAutoRefreshEnabled: true
+        });
+        const db = getFirestore(app);
+
+        const bingoCard = document.getElementById("bingo-card");
+        const cardTable = document.getElementById("card-table");
+        const usernameDisplay = document.getElementById("username-display");
+        let currentCardTimeout = null;
+
+        // Listen for any user with showCard: true
+        const usersRef = collection(db, "users");
+        const q = query(usersRef, where("showCard", "==", true));
+
+        onSnapshot(q, (snapshot) => {
+            snapshot.docChanges().forEach((change) => {
+                console.log("Document Change Detected:", change);
+                if (change.type === "added" && !currentCardTimeout) {
+                    const userData = change.doc.data();
+                    const username = change.doc.id;
+                    console.log("User Data:", username, userData);
+
+                    showBingoCard(username, userData);
+
+                    if (userData.isBingo) {
+                        showWinner(username);
+                    }
+
+                    // Hide after x seconds and reset flag
+                    currentCardTimeout = setTimeout(() => {
+                        hideBingoCard();
+                        hideWinner();
+                        
+                        updateDoc(doc(db, "users", username), {
+                            showCard: false
+                        }).then(() => {
+                            console.log(`ShowCard updated to false for ${username}`);
+                        }).catch((error) => {
+                            console.error("Error updating showCard:", error);
+                        });
+                        
+                        currentCardTimeout = null;
+                    }, 7000);
+                }
+            });
+        }, (error) => {
+            console.error("Error listening to Firestore:", error);
+        });
+
+        function showBingoCard(username, userData) {
+            usernameDisplay.textContent = `User: ${username}`;
+            cardTable.innerHTML = "";
+
+            let index = 0;
+            for (let row = 0; row < userData.grid_rows; row++) {
+                let tr = document.createElement("tr");
+                for (let col = 0; col < userData.grid_columns; col++) {
+                    let td = document.createElement("td");
+                    td.innerHTML = `<strong>${index + 1}</strong> ${userData.card[index]}`;
+                    td.classList.add("bingo-cell");
+                    
+                    if (userData.marked[index]) {
+                        td.classList.add("marked");
+                    }
+
+                    tr.appendChild(td);
+                    index++;
+                }
+                cardTable.appendChild(tr);
+            }
+
+            bingoCard.classList.remove("hidden");
+            console.log(`Bingo card displayed for ${username}`);
+        }
+
+        function hideBingoCard() {
+            bingoCard.classList.add("hidden");
+            cardTable.innerHTML = "";
+            usernameDisplay.textContent = "";
+            console.log("Bingo card hidden");
+        }
+
+        function showWinner(username) {
+            const winnerOverlay = document.getElementById('winner-overlay');
+            const winnerName = document.getElementById('winner-name');
+            
+            winnerName.textContent = `${username}`;
+            winnerOverlay.classList.remove('hidden');
+        }
+
+        function hideWinner() {
+            document.getElementById('winner-overlay').classList.add('hidden');
+        }
     </script>
 </body>
 </html>

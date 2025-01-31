@@ -69,4 +69,4 @@ node_modules/
 .dataconnect
 
 # Ignore Firebase config file
-firebase-config.js
+src/firebase-config.js
