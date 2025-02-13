@@ -31,10 +31,12 @@
         // Initialize Firebase app
         const app = initializeApp(firebaseConfig);
 
+        /*
         const appCheck = initializeAppCheck(app, {
             provider: new ReCaptchaEnterpriseProvider(''),
             isTokenAutoRefreshEnabled: true
         });
+        */
         const db = getFirestore(app);
 
         const bingoCard = document.getElementById("bingo-card");
@@ -43,9 +45,73 @@
         let currentCardTimeout = null;
 
         // Listen for any user with showCard: true
-        const usersRef = collection(db, "users");
+        const channel_name = "p0js";
+        const usersRef = collection(db, "streamer", channel_name, "game_name", "bingo", "players");
+        const bingoGameRef = doc(db, "streamer", channel_name, "game_name", "bingo");
+        let grid_rows = 5;
+        let grid_columns = 5;
+
         const q = query(usersRef, where("showCard", "==", true));
 
+        const unsubscribeBingo = onSnapshot(bingoGameRef, (docSnap) => {
+            if (docSnap.exists()) {
+                const bingoData = docSnap.data();
+                grid_rows = bingoData.grid_rows || 5;
+                grid_columns = bingoData.grid_columns || 5;
+            }
+        });
+
+        // Dane testowe
+        const testUsers = [
+            {
+                id: "testUser1",
+                data: {
+                    showCard: true,
+                    isBingo: false,
+                    card: [
+                        "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed",
+                        "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed",
+                        "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed",
+                        "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed",
+                        "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed",
+                    ],
+                    marked: [
+                        true, false, false, false, false,
+                        false, true, false, false, false,
+                        false, false, true, false, false,
+                        false, false, false, true, false,
+                        false, false, false, false, false
+                    ]
+                }
+            }
+        ];
+
+        // Funkcja do symulacji pobierania danych
+        function simulateDataFetch() {
+            console.log("Symulacja pobierania danych...");
+            grid_rows = 5;
+            grid_columns = 5;
+
+            testUsers.forEach(user => {
+                showBingoCard(user.id, user.data);
+
+                if (user.data.isBingo) {
+                    showWinner(user.id);
+                }
+
+                // Ukrywanie po 7 sekundach
+                currentCardTimeout = setTimeout(() => {
+                    hideBingoCard();
+                    hideWinner();
+                    currentCardTimeout = null;
+                }, 99999999);
+            });
+        }
+
+        // Wywołaj symulację zamiast onSnapshot
+        simulateDataFetch();
+        
+        /*
         onSnapshot(q, (snapshot) => {
             snapshot.docChanges().forEach((change) => {
                 console.log("Document Change Detected:", change);
@@ -65,7 +131,7 @@
                         hideBingoCard();
                         hideWinner();
                         
-                        updateDoc(doc(db, "users", username), {
+                        updateDoc(doc(db, "streamer", channel_name, "game_name", "bingo", "players", username), {
                             showCard: false
                         }).then(() => {
                             console.log(`ShowCard updated to false for ${username}`);
@@ -80,15 +146,18 @@
         }, (error) => {
             console.error("Error listening to Firestore:", error);
         });
+        */
 
         function showBingoCard(username, userData) {
             usernameDisplay.textContent = `User: ${username}`;
             cardTable.innerHTML = "";
 
+            cardTable.setAttribute('data-grid-size', Math.max(grid_rows, grid_columns));
+
             let index = 0;
-            for (let row = 0; row < userData.grid_rows; row++) {
+            for (let row = 0; row < grid_rows; row++) {
                 let tr = document.createElement("tr");
-                for (let col = 0; col < userData.grid_columns; col++) {
+                for (let col = 0; col < grid_columns; col++) {
                     let td = document.createElement("td");
                     td.innerHTML = `<strong>${index + 1}</strong> ${userData.card[index]}`;
                     td.classList.add("bingo-cell");
@@ -104,7 +173,6 @@
             }
 
             bingoCard.classList.remove("hidden");
-            console.log(`Bingo card displayed for ${username}`);
         }
 
         function hideBingoCard() {

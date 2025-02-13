@@ -18,13 +18,15 @@ body {
     transform: translate(-50%, -50%);
     background: linear-gradient(145deg, #1a1a1a, #0a0a0a);
     color: #fff;
-    padding: 25px;
+    padding: 20px;
     border-radius: 20px;
-    min-width: 500px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    width: 800px;  /* Fixed width */
+    height: 600px; /* Fixed height */
+    box-sizing: border-box; /* Include padding in dimensions */
+    overflow: hidden; /* Prevent content overflow */
+    display: flex;
+    flex-direction: column;
     border: 3px solid #ffd700;
-    opacity: 1;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .bingo-header {
@@ -41,21 +43,39 @@ body {
 
 #card-table {
     width: 100%;
+    height: calc(100% - 80px); /* Account for header and username */
     border-collapse: separate;
     border-spacing: 8px;
+    table-layout: fixed;
 }
 
 #card-table td {
-    padding: 20px;
+    position: relative;
+    padding: 10px;
     background: rgba(255, 255, 255, 0.1);
     border: 2px solid rgba(255, 215, 0, 0.3);
-    border-radius: 12px;
+    border-radius: 8px;
     text-align: center;
     vertical-align: middle;
-    transition: all 0.3s ease;
-    position: relative;
-    min-width: 100px;
-    min-height: 100px;
+    word-break: break-word;
+    overflow: hidden;
+    font-size: 0.9em; /* Dynamic font size */
+    line-height: 1.2;
+}
+
+#card-table[data-grid-size="5"] td {
+    height: calc((400px - 150px) / 5 - 8px); /* Account for spacing */
+    font-size: 0.8em;
+}
+
+#card-table[data-grid-size="4"] td {
+    height: calc((400px - 150px) / 4 - 8px);
+    font-size: 1.1em;
+}
+
+#card-table[data-grid-size="3"] td {
+    height: calc((400px - 150px) / 3 - 8px);
+    font-size: 1.2em;
 }
 
 #card-table td.marked {
@@ -67,12 +87,12 @@ body {
 #card-table td.marked::after {
     content: "✓";
     position: absolute;
-    top: -10px;
-    right: -10px;
+    top: 5px;
+    right: 5px;
     background: #32cd32;
     color: white;
-    width: 25px;
-    height: 25px;
+    width: 20px;
+    height: 20px;
     border-radius: 50%;
     display: flex;
     align-items: center;
