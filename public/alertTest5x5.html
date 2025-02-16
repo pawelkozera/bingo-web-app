@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bingo Card Alert</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bangers&family=Roboto:wght@400;700&display=swap">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="bingo-card" class="hidden">
+        <div class="bingo-header">BINGO CARD</div>
+        <div id="username-display"></div>
+        <table id="card-table"></table>
+    </div>
+    <div id="winner-overlay" class="hidden">
+        <div class="winner-text">🎉 BINGO! 🎉</div>
+        <div class="winner-user" id="winner-name"></div>
+    </div>
+
+    <script type="module">
+        const bingoCard = document.getElementById("bingo-card");
+        const cardTable = document.getElementById("card-table");
+        const usernameDisplay = document.getElementById("username-display");
+        let currentCardTimeout = null;
+
+        let grid_rows = 5;
+        let grid_columns = 5;
+
+        // Dane testowe
+        const testUsers = [
+            {
+                id: "testUser1",
+                data: {
+                    showCard: true,
+                    isBingo: false,
+                    card: [
+                        "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed",
+                        "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed",
+                        "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed",
+                        "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed",
+                        "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed",
+                    ],
+                    marked: [
+                        true, false, false, false, false,
+                        false, true, false, false, false,
+                        false, false, true, false, false,
+                        false, false, false, true, false,
+                        false, false, false, false, false
+                    ]
+                }
+            }
+        ];
+
+        // Funkcja do symulacji pobierania danych
+        function simulateDataFetch() {
+            console.log("Symulacja pobierania danych...");
+            grid_rows = 5;
+            grid_columns = 5;
+
+            testUsers.forEach(user => {
+                showBingoCard(user.id, user.data);
+
+                if (user.data.isBingo) {
+                    showWinner(user.id);
+                }
+            });
+        }
+
+        // Wywołaj symulację zamiast onSnapshot
+        simulateDataFetch();
+
+        function showBingoCard(username, userData) {
+            usernameDisplay.textContent = `User: ${username}`;
+            cardTable.innerHTML = "";
+
+            cardTable.setAttribute('data-grid-size', Math.max(grid_rows, grid_columns));
+
+            let index = 0;
+            for (let row = 0; row < grid_rows; row++) {
+                let tr = document.createElement("tr");
+                for (let col = 0; col < grid_columns; col++) {
+                    let td = document.createElement("td");
+                    td.innerHTML = `<strong>${index + 1}</strong> ${userData.card[index]}`;
+                    td.classList.add("bingo-cell");
+                    
+                    if (userData.marked[index]) {
+                        td.classList.add("marked");
+                    }
+
+                    tr.appendChild(td);
+                    index++;
+                }
+                cardTable.appendChild(tr);
+            }
+
+            bingoCard.classList.remove("hidden");
+        }
+
+        function hideBingoCard() {
+            bingoCard.classList.add("hidden");
+            cardTable.innerHTML = "";
+            usernameDisplay.textContent = "";
+            console.log("Bingo card hidden");
+        }
+
+        function showWinner(username) {
+            const winnerOverlay = document.getElementById('winner-overlay');
+            const winnerName = document.getElementById('winner-name');
+            
+            winnerName.textContent = `${username}`;
+            winnerOverlay.classList.remove('hidden');
+        }
+
+        function hideWinner() {
+            document.getElementById('winner-overlay').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>

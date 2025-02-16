@@ -2,197 +2,246 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bingo Card Alert</title>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bangers&family=Roboto:wght@400;700&display=swap">
-    <link rel="stylesheet" href="style.css">
+    <title>Bingo Control Panel</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@3.9.2/dist/full.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-    <div id="bingo-card" class="hidden">
-        <div class="bingo-header">BINGO CARD</div>
-        <div id="username-display"></div>
-        <table id="card-table"></table>
-    </div>
-    <div id="winner-overlay" class="hidden">
-        <div class="winner-text">🎉 BINGO! 🎉</div>
-        <div class="winner-user" id="winner-name"></div>
+<body class="p-8 bg-gray-100">
+    <nav class="mb-8 bg-white shadow-sm rounded-lg">
+        <div class="max-w-4xl mx-auto p-4">
+            <div class="flex gap-4">
+                <a href="index.html" class="button btn btn-ghost font-semibold active-section">Dashboard</a>
+                <a href="approvals.html" class="button btn btn-ghost font-semibold">Bingo Approvals</a>
+                <a href="alerts.html" class="button btn btn-ghost font-semibold">Alert Settings</a>
+                <a href="leaderboard.html" class="button btn btn-ghost font-semibold">Leaderboard</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-6">
+        <h1 class="text-3xl font-bold mb-6 text-gray-800">Bingo Control Panel</h1>
+
+        <!-- Game Controls -->
+        <div class="mb-4 ">
+            <h2 class="text-xl font-semibold mb-4">Start Game</h2>
+            <div class="grid grid-cols-2 gap-4">
+                <button onclick="toggleGame()" id="toggleButton" class="btn btn-success">Start Game</button>
+            </div>
+        </div>
+        
+        <!-- Game Settings -->
+        <div class="mb-8">
+            <h2 class="text-xl font-semibold mb-4">Grid Configuration</h2>
+            <div class="grid grid-cols-1 gap-4">
+                <div>
+                    <label class="block mb-2">Grid Size</label>
+                    <select id="gridSize" class="select select-bordered w-full">
+                        <option value="3">3x3 Grid</option>
+                        <option value="4">4x4 Grid</option>
+                        <option value="5">5x5 Grid</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Points Configuration -->
+        <div class="mb-8">
+            <h2 class="text-xl font-semibold mb-4">Points Settings</h2>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block mb-2">1st Place Points</label>
+                    <input type="number" id="points1st" placeholder="1st Place Points" class="input input-bordered">
+                </div>
+                <div>
+                    <label class="block mb-2">2nd Place Points</label>
+                    <input type="number" id="points2nd" placeholder="2nd Place Points" class="input input-bordered">
+                </div>
+                <div>
+                    <label class="block mb-2">3rd Place Points</label>
+                    <input type="number" id="points3rd" placeholder="3rd Place Points" class="input input-bordered">
+                </div>
+                <div>
+                    <label class="block mb-2">Other Places Points</label>
+                    <input type="number" id="pointsOthers" placeholder="Other Places Points" class="input input-bordered">
+                </div>
+            </div>
+        </div>
+
+        <!-- Question Management -->
+        <div class="mb-8">
+            <div>
+                <h2 class="text-xl font-semibold mb-4">Question Bank</h2>
+                <button onclick="toggleQuestions()" id="toggleQuestionsBtn" class="btn btn-sm mb-4">
+                    ▲ Hide Questions
+                </button>
+            </div>
+            <div class="flex gap-2 mb-4">
+                <input type="text" id="newQuestion" placeholder="New question" class="input input-bordered flex-grow">
+                <button onclick="addQuestion()" class="btn btn-primary">Add Question</button>
+            </div>
+            <div class="grid grid-cols-2 gap-4 mb-2 pr-16">
+                <div class="font-semibold text-gray-800" id="totalQuestionsDiv">Question</div>
+                <div class="font-semibold text-right text-gray-800">Is Active</div>
+            </div>
+            <div id="questionsList" class="space-y-2" style="display: block;"></div>
+        </div>
+
+        <!-- Game Controls -->
+        <div class="flex gap-4">
+            <button onclick="saveSettings()" class="btn btn-primary">Save Settings</button>
+        </div>
     </div>
 
+    <!-- Firebase SDK -->
     <script type="module">
-        // Import Firebase modules (Modular SDK)
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
-        import { getFirestore, collection, query, where, onSnapshot, doc, updateDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
-        import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app-check.js";
+        let isQuestionsVisible = true;
+        let gameIsActive = false;
+        let totalQuestions = 0;
+        
+        import { getFirestore, doc, getDoc, updateDoc, collection, addDoc, getDocs, deleteDoc, writeBatch, onSnapshot } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+        import { initAuthCheck, db, STREAMER_NAME } from './firebase-config.js';
 
-        const firebaseConfig = {
+        initAuthCheck();
+
+        // Get current streamer (you'll need to implement auth)
+        const streamerName = STREAMER_NAME; // Replace with actual streamer ID
+        const bingoRef = doc(db, "streamer", streamerName, "game_name", "bingo");
+        const questionsRef = collection(db, "streamer", streamerName, "game_name", "bingo", "questions");
+
+        // Load existing settings
+        async function loadSettings() {
+            const snapshot = await getDoc(bingoRef);
+            if (snapshot.exists()) {
+                const data = snapshot.data();
+                const gridSize = data.grid_rows || 5;  // Assuming square grid
+                document.getElementById('gridSize').value = gridSize.toString();
+                document.getElementById('points1st').value = data.points_1st || 1000;
+                document.getElementById('points2nd').value = data.points_2nd || 500;
+                document.getElementById('points3rd').value = data.points_3rd || 250;
+                document.getElementById('pointsOthers').value = data.points_others || 100;
+                updateToggleButton(data.isActive);
+            }
+        }
+
+        // Real-time questions listener
+        onSnapshot(questionsRef, (snapshot) => {
+            const questionsList = document.getElementById('questionsList');
+            questionsList.innerHTML = '';
+
+            totalQuestions = snapshot.docs.length;
+            const totalQuestionsDiv = document.getElementById('totalQuestionsDiv');
+            totalQuestionsDiv.innerHTML = "Total questions: " + totalQuestions;
             
+            snapshot.docs.forEach(doc => {
+                const question = doc.data();
+                const div = document.createElement('div');
+                div.className = "flex items-center justify-between bg-gray-50 p-3 rounded-lg";
+                div.innerHTML = `
+                    <span>${question.text}</span>
+                    <div class="flex gap-2">
+                        <input type="checkbox" ${question.isUsed ? 'checked' : ''} 
+                               onchange="toggleQuestion('${doc.id}', this.checked)"
+                               class="checkbox checkbox-primary">
+                        <button onclick="deleteQuestion('${doc.id}')" class="btn btn-error btn-xs">Delete</button>
+                    </div>
+                `;
+                questionsList.appendChild(div);
+            });
+        });
+
+        // Control functions
+        window.saveSettings = async () => {
+            const gridSize = parseInt(document.getElementById('gridSize').value);
+
+            await updateDoc(bingoRef, {
+                grid_rows: gridSize,
+                grid_columns: gridSize,
+                points_1st: parseInt(document.getElementById('points1st').value),
+                points_2nd: parseInt(document.getElementById('points2nd').value),
+                points_3rd: parseInt(document.getElementById('points3rd').value),
+                points_others: parseInt(document.getElementById('pointsOthers').value)
+            });
+            alert('Settings saved!');
         };
 
-        // Initialize Firebase app
-        const app = initializeApp(firebaseConfig);
+        window.toggleGame = async () => {
+            const button = document.getElementById('toggleButton');
+            const currentStatus = (await getDoc(bingoRef)).data().isActive;
+            const newStatus = !currentStatus;
 
-        /*
-        const appCheck = initializeAppCheck(app, {
-            provider: new ReCaptchaEnterpriseProvider(''),
-            isTokenAutoRefreshEnabled: true
-        });
-        */
-        const db = getFirestore(app);
+            // Batch write for multiple operations
+            const batch = writeBatch(db);
 
-        const bingoCard = document.getElementById("bingo-card");
-        const cardTable = document.getElementById("card-table");
-        const usernameDisplay = document.getElementById("username-display");
-        let currentCardTimeout = null;
+            if (newStatus) {
+                // Reset game state when STARTING
+                batch.update(bingoRef, {
+                    isActive: true,
+                    numberOfBingosToCheck: 0,
+                    bingoApprovedCount: 0
+                });
 
-        // Listen for any user with showCard: true
-        const channel_name = "p0js";
-        const usersRef = collection(db, "streamer", channel_name, "game_name", "bingo", "players");
-        const bingoGameRef = doc(db, "streamer", channel_name, "game_name", "bingo");
-        let grid_rows = 5;
-        let grid_columns = 5;
-
-        const q = query(usersRef, where("showCard", "==", true));
-
-        const unsubscribeBingo = onSnapshot(bingoGameRef, (docSnap) => {
-            if (docSnap.exists()) {
-                const bingoData = docSnap.data();
-                grid_rows = bingoData.grid_rows || 5;
-                grid_columns = bingoData.grid_columns || 5;
-            }
-        });
-
-        // Dane testowe
-        const testUsers = [
-            {
-                id: "testUser1",
-                data: {
-                    showCard: true,
-                    isBingo: false,
-                    card: [
-                        "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed",
-                        "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed",
-                        "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed",
-                        "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed",
-                        "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed",
-                    ],
-                    marked: [
-                        true, false, false, false, false,
-                        false, true, false, false, false,
-                        false, false, true, false, false,
-                        false, false, false, true, false,
-                        false, false, false, false, false
-                    ]
-                }
-            }
-        ];
-
-        // Funkcja do symulacji pobierania danych
-        function simulateDataFetch() {
-            console.log("Symulacja pobierania danych...");
-            grid_rows = 5;
-            grid_columns = 5;
-
-            testUsers.forEach(user => {
-                showBingoCard(user.id, user.data);
-
-                if (user.data.isBingo) {
-                    showWinner(user.id);
-                }
-
-                // Ukrywanie po 7 sekundach
-                currentCardTimeout = setTimeout(() => {
-                    hideBingoCard();
-                    hideWinner();
-                    currentCardTimeout = null;
-                }, 99999999);
-            });
-        }
-
-        // Wywołaj symulację zamiast onSnapshot
-        simulateDataFetch();
-        
-        /*
-        onSnapshot(q, (snapshot) => {
-            snapshot.docChanges().forEach((change) => {
-                console.log("Document Change Detected:", change);
-                if (change.type === "added" && !currentCardTimeout) {
-                    const userData = change.doc.data();
-                    const username = change.doc.id;
-                    console.log("User Data:", username, userData);
-
-                    showBingoCard(username, userData);
-
-                    if (userData.isBingo) {
-                        showWinner(username);
-                    }
-
-                    // Hide after x seconds and reset flag
-                    currentCardTimeout = setTimeout(() => {
-                        hideBingoCard();
-                        hideWinner();
-                        
-                        updateDoc(doc(db, "streamer", channel_name, "game_name", "bingo", "players", username), {
-                            showCard: false
-                        }).then(() => {
-                            console.log(`ShowCard updated to false for ${username}`);
-                        }).catch((error) => {
-                            console.error("Error updating showCard:", error);
-                        });
-                        
-                        currentCardTimeout = null;
-                    }, 7000);
-                }
-            });
-        }, (error) => {
-            console.error("Error listening to Firestore:", error);
-        });
-        */
-
-        function showBingoCard(username, userData) {
-            usernameDisplay.textContent = `User: ${username}`;
-            cardTable.innerHTML = "";
-
-            cardTable.setAttribute('data-grid-size', Math.max(grid_rows, grid_columns));
-
-            let index = 0;
-            for (let row = 0; row < grid_rows; row++) {
-                let tr = document.createElement("tr");
-                for (let col = 0; col < grid_columns; col++) {
-                    let td = document.createElement("td");
-                    td.innerHTML = `<strong>${index + 1}</strong> ${userData.card[index]}`;
-                    td.classList.add("bingo-cell");
-                    
-                    if (userData.marked[index]) {
-                        td.classList.add("marked");
-                    }
-
-                    tr.appendChild(td);
-                    index++;
-                }
-                cardTable.appendChild(tr);
+                // Reset all players
+                const playersSnapshot = await getDocs(collection(bingoRef, "players"));
+                playersSnapshot.forEach(doc => {
+                    batch.delete(doc.ref); // Remove all player documents
+                });
+            } else {
+                batch.update(bingoRef, {
+                    isActive: false
+                });
             }
 
-            bingoCard.classList.remove("hidden");
-        }
-
-        function hideBingoCard() {
-            bingoCard.classList.add("hidden");
-            cardTable.innerHTML = "";
-            usernameDisplay.textContent = "";
-            console.log("Bingo card hidden");
-        }
-
-        function showWinner(username) {
-            const winnerOverlay = document.getElementById('winner-overlay');
-            const winnerName = document.getElementById('winner-name');
+            await batch.commit();
             
-            winnerName.textContent = `${username}`;
-            winnerOverlay.classList.remove('hidden');
+            // Update UI
+            gameIsActive = newStatus;
+            button.textContent = gameIsActive ? 'END GAME' : 'START GAME';
+            button.className = gameIsActive ? 'btn btn-error' : 'btn btn-success';
+        };
+
+        window.addQuestion = async () => {
+            const text = document.getElementById('newQuestion').value;
+            if (text) {
+                await addDoc(questionsRef, { text, isUsed: false });
+                document.getElementById('newQuestion').value = '';
+            }
+        };
+
+        window.toggleQuestion = async (questionId, isUsed) => {
+            await updateDoc(doc(questionsRef, questionId), { isUsed });
+        };
+
+        window.toggleQuestions = () => {
+            if (gameIsActive) return;
+            
+            const questionsList = document.getElementById('questionsList');
+            const toggleBtn = document.getElementById('toggleQuestionsBtn');
+            isQuestionsVisible = !isQuestionsVisible;
+            
+            questionsList.style.display = isQuestionsVisible ? 'block' : 'none';
+            toggleBtn.innerHTML = isQuestionsVisible ? '▲ Hide Questions' : '▼ Show Questions';
+        };
+
+        window.deleteQuestion = async (questionId) => {
+            await deleteDoc(doc(questionsRef, questionId));
+        };
+
+        function updateToggleButton(isActive) {
+            const button = document.getElementById('toggleButton');
+            gameIsActive = isActive;
+            button.textContent = isActive ? 'END GAME' : 'START GAME';
+            button.className = isActive ? 'btn btn-error' : 'btn btn-success';
+            
+            // Auto-hide questions when game starts
+            if (isActive) {
+                document.getElementById('questionsList').style.display = 'none';
+                document.getElementById('toggleQuestionsBtn').innerHTML = '▼ Show Questions';
+                isQuestionsVisible = false;
+            }
         }
 
-        function hideWinner() {
-            document.getElementById('winner-overlay').classList.add('hidden');
-        }
+        // Initialize
+        loadSettings();
     </script>
 </body>
 </html>
