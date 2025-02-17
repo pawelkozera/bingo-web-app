@@ -39,11 +39,20 @@
             <h2 class="text-2xl font-semibold mb-2 text-gray-700">Stream alert</h2>
             <p class="text-gray-600 mb-4">Use this link for streaming:</p>
             <a href="alertStream.html" target="_blank" class="link link-primary text-lg">Stream alert</a>
+
+            <p class="text-gray-600 mb-4 mt-4">Creates a test bingo card to check if the stream alert is working:</p>
+            <div class="flex gap-4 mb-4 mt-4">
+                <button onclick="showTestAlert(false)" class="btn btn-primary">Display Test Alert</button>
+            </div>
+
+            <div class="flex gap-4 mb-6">
+                <button onclick="showTestAlert(true)" class="btn btn-primary">Display Test Alert User Won</button>
+            </div>
         </div>
         
         <div class="mb-6">
             <h2 class="text-2xl font-semibold mb-2 text-gray-700">Test alerts</h2>
-            <p class="text-gray-600 mb-4">Use these links for testing:</p>
+            <p class="text-gray-600 mb-4">Static alerts for testing:</p>
             <ul class="space-y-2">
                 <li><a href="alertTest3x3.html" target="_blank" class="link link-primary text-lg">Test stream alert grid 3x3</a></li>
                 <li><a href="alertTest4x4.html" target="_blank" class="link link-primary text-lg">Test stream alert grid 4x4</a></li>
@@ -55,7 +64,7 @@
     <!-- Firebase SDK -->
     <script type="module">
         import { initAuthCheck, STREAMER_NAME, db } from './firebase-config.js';
-        import { doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+        import { doc, getDoc, updateDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 
         initAuthCheck();
 
@@ -75,6 +84,57 @@
                 alert_display_time: parseInt(document.getElementById('alert_display_time').value),
             });
             alert('Settings saved!');
+        };
+
+        // Add to your existing script
+        window.showTestAlert = async (isBingo = false) => {
+            try {
+                const TEST_USERNAME = "Test User";
+                const userRef = doc(db, "streamer", streamerName, "game_name", "bingo", "players", TEST_USERNAME);
+                
+                // Delete existing test user if exists
+                const existing = await getDoc(userRef);
+                if (existing.exists()) {
+                    await deleteDoc(userRef);
+                }
+
+                // Create test card data
+                const testCard = {
+                    card: [
+                        "Test Square 1", "Test Square 2", "Test Square 3", "Test Square 4", "Test Square 5",
+                        "Test Square 6", "Test Square 7", "Test Square 8", "Test Square 9", "Test Square 10",
+                        "Test Square 11", "Test Square 12", "Test Square 13", "Test Square 14", "Test Square 15",
+                        "Test Square 16", "Test Square 17", "Test Square 18", "Test Square 19", "Test Square 20",
+                        "Test Square 21", "Test Square 22", "Test Square 23", "Test Square 24", "Test Square 25",
+                    ],
+                    marked: [
+                        true, false, false, false, true,
+                        true, false, false, false, true,
+                        true, false, false, false, true,
+                        true, false, false, false, true,
+                        true, false, false, false, true
+                    ],
+                    showCard: true,
+                    isBingo: isBingo,
+                    markedForCheck: false,
+                    numberForApproval: 0,
+                    gameEnded: false
+                };
+
+                // Create test user
+                await setDoc(userRef, testCard);
+                console.log("Test alert shown");
+
+                // Schedule deletion after 30 seconds
+                setTimeout(async () => {
+                    await deleteDoc(userRef);
+                    console.log("Test alert cleaned up");
+                }, 4000);
+
+
+            } catch (error) {
+                console.error("Test alert failed:", error);
+            }
         };
 
         loadSettings();
