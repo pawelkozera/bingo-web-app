@@ -43,7 +43,7 @@ const GAME_MODES = {
 };
 
 let currentGameMode;
-let teams = {};
+let teams = { red: [], blue: [] };
 let restartTimeout;
 
 class Fighter {
@@ -374,13 +374,13 @@ function startFight() {
     if (!IS_ACTIVE) return;
     resetArena();
 
+    // Determine game mode
+    currentGameMode = determineGameMode();
+
     // Add real players from the PLAYERS set
     PLAYERS.forEach(playerId => {
         addRealPlayer(playerId);
     });
-
-    // Determine game mode
-    currentGameMode = determineGameMode();
     
     // Add bots if enabled
     if (ADD_BOTS) {
@@ -436,7 +436,7 @@ function addBots(quantity) {
 
 // Helper functions
 function determineGameMode() {
-    return PLAYERS.size >= 4 && Math.random() > 0.5 ? 
+    return (PLAYERS.size >= 4 || ADD_BOTS) && Math.random() > 0.5 ? 
         GAME_MODES.TEAM_DEATHMATCH : 
         GAME_MODES.FREE_FOR_ALL;
 }
@@ -556,11 +556,11 @@ function resetArena() {
                 <span>Arena</span>
             </div>`;
     fighters = [];
-    teams = {};
+    teams = { red: [], blue: [] };
     if (fightInterval) clearInterval(fightInterval);
 }
 
 startFight();
 
-document.getElementById('startButton').addEventListener('click', startFight);
-document.getElementById('resetButton').addEventListener('click', resetArena);
+//document.getElementById('startButton').addEventListener('click', startFight);
+//document.getElementById('resetButton').addEventListener('click', resetArena);

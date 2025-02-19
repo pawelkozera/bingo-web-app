@@ -24,7 +24,7 @@ await setPersistence(auth, browserLocalPersistence);
 // Streamer configuration
 export const STREAMER_NAME = "je1lybeann";  // Replace if needed
 
-// firebase-config.js
+// firebase-config.js 
 export const store = {
     _state: {
       username: null,
