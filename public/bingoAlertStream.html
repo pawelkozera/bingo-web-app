@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bingo Card Alert</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bangers&family=Roboto:wght@400;700&display=swap">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="bingo-card" class="hidden">
+        <div class="bingo-header">BINGO CARD</div>
+        <div id="username-display"></div>
+        <table id="card-table"></table>
+    </div>
+    <div id="winner-overlay" class="hidden">
+        <div class="winner-text">🎉 BINGO! 🎉</div>
+        <div class="winner-user" id="winner-name"></div>
+    </div>
+
+    <script type="module">
+        // Import Firebase modules (Modular SDK)
+        import { getFirestore, collection, query, where, onSnapshot, doc, updateDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+        import { initSingInAnonymously, db, STREAMER_NAME, store } from './firebase-config.js';
+
+        initSingInAnonymously();
+
+        const bingoCard = document.getElementById("bingo-card");
+        const cardTable = document.getElementById("card-table");
+        const usernameDisplay = document.getElementById("username-display");
+        let currentCardTimeout = null;
+
+        // Listen for any user with showCard: true
+        const channel_name = STREAMER_NAME;
+        const usersRef = collection(db, "streamer", channel_name, "game_name", "bingo", "players");
+        const bingoGameRef = doc(db, "streamer", channel_name, "game_name", "bingo");
+        
+        let grid_rows = 5;
+        let grid_columns = 5;
+        let username = null;
+        let userData = null;
+        let alertTime = 7;
+
+        const unsubscribe = store.subscribe((state) => {
+            if (state.username && state.userData) {
+                showBingoCard(state.username, state.userData);
+                
+                // Automatyczne ukrycie po czasie
+                currentCardTimeout = setTimeout(() => {
+                    hideBingoCard();
+                    hideWinner();
+                    updateDoc(doc(db, "streamer", channel_name, "game_name", "bingo", "players", state.username), {
+                        showCard: false
+                    });
+                }, (state.userData.alert_display_time || 1) * 1000);
+            }
+        });
+
+        function showAlert() {
+            username = store._state.username;
+            userData = store._state.userData;
+            alertTime = store._state.alert_bingo_time;
+            grid_rows = store._state.grid_rows;
+            grid_columns = store._state.grid_columns;
+
+            showBingoCard(username, userData);
+
+            if (userData.isBingo) {
+                showWinner(username);
+            }
+
+            // Hide after x seconds and reset flag
+            currentCardTimeout = setTimeout(() => {
+                hideBingoCard();
+                hideWinner();
+                
+                updateDoc(doc(db, "streamer", channel_name, "game_name", "bingo", "players", username), {
+                    showCard: false
+                }).then(() => {
+                    console.log(`ShowCard updated to false for ${username}`);
+                }).catch((error) => {
+                    console.error("Error updating showCard:", error);
+                });
+                
+                currentCardTimeout = null;
+            }, alertTime * 1000);
+        }
+
+        function showBingoCard(username, userData) {
+            usernameDisplay.textContent = `User: ${username}`;
+            cardTable.innerHTML = "";;
+
+            cardTable.setAttribute('data-grid-size', Math.max(grid_rows, grid_columns));
+
+            let index = 0;
+            for (let row = 0; row < grid_rows; row++) {
+                let tr = document.createElement("tr");
+                for (let col = 0; col < grid_columns; col++) {
+                    let td = document.createElement("td");
+                    td.innerHTML = `<strong>${index + 1}</strong> ${userData.card[index]}`;
+                    td.classList.add("bingo-cell");
+                    
+                    if (userData.marked[index]) {
+                        td.classList.add("marked");
+                    }
+
+                    tr.appendChild(td);
+                    index++;
+                }
+                cardTable.appendChild(tr);
+            }
+
+            bingoCard.classList.remove("hidden");
+        }
+
+        function hideBingoCard() {
+            bingoCard.classList.add("hidden");
+            cardTable.innerHTML = "";
+            usernameDisplay.textContent = "";
+            console.log("Bingo card hidden");
+        }
+
+        function showWinner(username) {
+            const winnerOverlay = document.getElementById('winner-overlay');
+            const winnerName = document.getElementById('winner-name');
+            
+            winnerName.textContent = `${username}`;
+            winnerOverlay.classList.remove('hidden');
+        }
+
+        function hideWinner() {
+            document.getElementById('winner-overlay').classList.add('hidden');
+        }
+
+        window.addEventListener('beforeunload', () => {
+            unsubscribe();
+        });
+
+        showAlert();
+    </script>
+</body>
+</html>

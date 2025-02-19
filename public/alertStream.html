@@ -1,183 +1,142 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bingo Card Alert</title>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bangers&family=Roboto:wght@400;700&display=swap">
-    <link rel="stylesheet" href="style.css">
+    <title>Stream Alerts</title>
+    <style>
+        .alert-frame {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: none;
+        }
+        .active-alert {
+            display: block;
+            z-index: 100;
+        }
+        .queued-alert {
+            display: none;
+            z-index: 50;
+        }
+    </style>
 </head>
 <body>
-    <div id="bingo-card" class="hidden">
-        <div class="bingo-header">BINGO CARD</div>
-        <div id="username-display"></div>
-        <table id="card-table"></table>
-    </div>
-    <div id="winner-overlay" class="hidden">
-        <div class="winner-text">🎉 BINGO! 🎉</div>
-        <div class="winner-user" id="winner-name"></div>
-    </div>
-
+    <div id="alert-container"></div>
     <script type="module">
-        // Import Firebase modules (Modular SDK)
-        import { getFirestore, collection, query, where, onSnapshot, doc, updateDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
-        import { initSingInAnonymously, db, STREAMER_NAME } from './firebase-config.js';
+        import { collection, query, where, onSnapshot, doc, updateDoc, getDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+        import { initSingInAnonymously, db, STREAMER_NAME, store } from './firebase-config.js';
 
         initSingInAnonymously();
 
-        const bingoCard = document.getElementById("bingo-card");
-        const cardTable = document.getElementById("card-table");
-        const usernameDisplay = document.getElementById("username-display");
-        let currentCardTimeout = null;
+        const usersRef = collection(db, "streamer", STREAMER_NAME, "game_name", "bingo", "players");
+        const bingoGameRef = doc(db, "streamer", STREAMER_NAME, "game_name", "bingo");
 
-        // Listen for any user with showCard: true
-        const channel_name = STREAMER_NAME;
-        const usersRef = collection(db, "streamer", channel_name, "game_name", "bingo", "players");
-        const bingoGameRef = doc(db, "streamer", channel_name, "game_name", "bingo");
-        let grid_rows = 5;
-        let grid_columns = 5;
-        let display_alert_time = 7;
+        const arenaGameRef = doc(db, "streamer", STREAMER_NAME, "game_name", "arena");
 
         const q = query(usersRef, where("showCard", "==", true));
-
-        const unsubscribeBingo = onSnapshot(bingoGameRef, (docSnap) => {
-            if (docSnap.exists()) {
-                const bingoData = docSnap.data();
-                grid_rows = bingoData.grid_rows || 5;
-                grid_columns = bingoData.grid_columns || 5;
-                display_alert_time = bingoData.alert_display_time || 7;
-            }
-        });
-
-        // Dane testowe
-        const testUsers = [
-            {
-                id: "testUser1",
-                data: {
-                    showCard: true,
-                    isBingo: false,
-                    card: [
-                        "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed",
-                        "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed",
-                        "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed",
-                        "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed",
-                        "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed", "Someone has been scammed",
-                    ],
-                    marked: [
-                        true, false, false, false, false,
-                        false, true, false, false, false,
-                        false, false, true, false, false,
-                        false, false, false, true, false,
-                        false, false, false, false, false
-                    ]
-                }
-            }
-        ];
-
-        // Funkcja do symulacji pobierania danych
-        function simulateDataFetch() {
-            console.log("Symulacja pobierania danych...");
-            grid_rows = 5;
-            grid_columns = 5;
-
-            testUsers.forEach(user => {
-                showBingoCard(user.id, user.data);
-
-                if (user.data.isBingo) {
-                    showWinner(user.id);
-                }
-
-                // Ukrywanie po 7 sekundach
-                currentCardTimeout = setTimeout(() => {
-                    hideBingoCard();
-                    hideWinner();
-                    currentCardTimeout = null;
-                }, 99999999);
-            });
-        }
-
-        // Wywołaj symulację zamiast onSnapshot
-        //simulateDataFetch();
         
-        onSnapshot(q, (snapshot) => {
-            snapshot.docChanges().forEach((change) => {
-                console.log("Document Change Detected:", change);
-                if (change.type === "added" && !currentCardTimeout) {
-                    const userData = change.doc.data();
-                    const username = change.doc.id;
-                    console.log("User Data:", username, userData);
+        const alertQueue = [];
+        const alertPriorities = {
+            'arenaAlert': 1,
+            'bingoAlertStream': 2
+        };
 
-                    showBingoCard(username, userData);
+        let isArenaAlertActive = false;
 
-                    if (userData.isBingo) {
-                        showWinner(username);
+        onSnapshot(q, async (snapshot) => {
+            snapshot.docChanges().forEach(async (change) => {
+                if (change.type === "added") {
+                    try {
+                        const snapshot2 = await getDoc(bingoGameRef);
+                        if (snapshot2.exists()) {
+                                store.setState({
+                                    username: change.doc.id,
+                                    userData: change.doc.data(),
+                                    alert_bingo_time: snapshot2.data().alert_display_time,
+                                    grid_rows: snapshot2.data().grid_rows,
+                                    grid_columns: snapshot2.data().grid_columns
+                                });
+
+                            showAlert("bingoAlertStream", false);
+                        }
+                    } catch (error) {
+                        console.error("Error fetching bingoGameRef:", error);
                     }
-
-                    // Hide after x seconds and reset flag
-                    currentCardTimeout = setTimeout(() => {
-                        hideBingoCard();
-                        hideWinner();
-                        
-                        updateDoc(doc(db, "streamer", channel_name, "game_name", "bingo", "players", username), {
-                            showCard: false
-                        }).then(() => {
-                            console.log(`ShowCard updated to false for ${username}`);
-                        }).catch((error) => {
-                            console.error("Error updating showCard:", error);
-                        });
-                        
-                        currentCardTimeout = null;
-                    }, display_alert_time * 1000);
                 }
             });
-        }, (error) => {
-            console.error("Error listening to Firestore:", error);
         });
 
-        function showBingoCard(username, userData) {
-            usernameDisplay.textContent = `User: ${username}`;
-            cardTable.innerHTML = "";
-
-            cardTable.setAttribute('data-grid-size', Math.max(grid_rows, grid_columns));
-
-            let index = 0;
-            for (let row = 0; row < grid_rows; row++) {
-                let tr = document.createElement("tr");
-                for (let col = 0; col < grid_columns; col++) {
-                    let td = document.createElement("td");
-                    td.innerHTML = `<strong>${index + 1}</strong> ${userData.card[index]}`;
-                    td.classList.add("bingo-cell");
-                    
-                    if (userData.marked[index]) {
-                        td.classList.add("marked");
-                    }
-
-                    tr.appendChild(td);
-                    index++;
+        let unsubscribeIsActive = onSnapshot(arenaGameRef, (doc) => {
+            if (doc.exists()) {
+                const arenaData = doc.data();
+                const isActive = arenaData.isActive || false;
+                
+                if (isActive) {
+                    isArenaAlertActive = true;
+                    showAlert("arenaAlert", true);
+                } else {
+                    isArenaAlertActive = false;
+                    removePersistentAlert("arenaAlert");
                 }
-                cardTable.appendChild(tr);
+            }
+        }, (error) => {
+            console.error("Error listening to isActive:", error);
+        });
+
+        function showAlert(type, isPersistent = false) {
+            const iframe = document.createElement('iframe');
+            iframe.className = 'alert-frame';
+            iframe.src = `${type}.html`;
+
+            iframe.onload = () => {
+                const duration = store._state.alert_bingo_time;
+                alertQueue.push({ iframe, type, duration, isPersistent });
+                alertQueue.sort((a, b) => alertPriorities[a.type] - alertPriorities[b.type]);
+
+                if (isArenaAlertActive && type !== "arenaAlert") return;
+
+                showNextAlert();
+            };
+
+            document.getElementById('alert-container').appendChild(iframe);
+        }
+
+        function showNextAlert() {
+            document.querySelectorAll('.alert-frame').forEach(f => f.classList.remove('active-alert'));
+            
+            if (alertQueue.length > 0) {
+                const nextAlert = alertQueue.shift();
+                nextAlert.iframe.classList.add('active-alert');
+
+                if (!nextAlert.isPersistent) {
+                    setTimeout(() => {
+                        nextAlert.iframe.remove();
+                        showNextAlert();
+                    }, (nextAlert.duration + 2) * 1000);
+                }
+            }
+        }
+
+        function removePersistentAlert(type) {
+            // Znajdź trwały alert o określonym typie
+            const alertIndex = alertQueue.findIndex(alert => alert.type === type && alert.isPersistent);
+
+            if (alertIndex !== -1) {
+                const alert = alertQueue[alertIndex];
+                alert.iframe.remove();
+                alertQueue.splice(alertIndex, 1);
             }
 
-            bingoCard.classList.remove("hidden");
-        }
+            // Sprawdź, czy aktywny alert również jest typu "arena" i jest trwały
+            const activeAlert = document.querySelector('.alert-frame.active-alert');
+            if (activeAlert && activeAlert.src.includes(`${type}.html`)) {
+                activeAlert.remove();
+            }
 
-        function hideBingoCard() {
-            bingoCard.classList.add("hidden");
-            cardTable.innerHTML = "";
-            usernameDisplay.textContent = "";
-            console.log("Bingo card hidden");
-        }
-
-        function showWinner(username) {
-            const winnerOverlay = document.getElementById('winner-overlay');
-            const winnerName = document.getElementById('winner-name');
-            
-            winnerName.textContent = `${username}`;
-            winnerOverlay.classList.remove('hidden');
-        }
-
-        function hideWinner() {
-            document.getElementById('winner-overlay').classList.add('hidden');
+            // Po usunięciu alertu, wymuś odświeżenie kolejki
+            showNextAlert();
         }
     </script>
 </body>

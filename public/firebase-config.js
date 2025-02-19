@@ -24,6 +24,45 @@ await setPersistence(auth, browserLocalPersistence);
 // Streamer configuration
 export const STREAMER_NAME = "je1lybeann";  // Replace if needed
 
+// firebase-config.js
+export const store = {
+    _state: {
+      username: null,
+      userData: null,
+      alert_bingo_time: 7,
+      grid_rows: 5,
+      grid_columns: 5
+    },
+    listeners: [],
+    
+    setState(newState) {
+      this._state = {...this._state, ...newState};
+      this.listeners.forEach(listener => listener(this._state));
+      // Sync z localStorage
+      localStorage.setItem('bingoStore', JSON.stringify(this._state));
+    },
+    
+    subscribe(listener) {
+      this.listeners.push(listener);
+      return () => {
+        this.listeners = this.listeners.filter(l => l !== listener);
+      };
+    }
+  };
+  
+  // Inicjalizacja z localStorage
+  const savedState = localStorage.getItem('bingoStore');
+  if (savedState) {
+    store._state = JSON.parse(savedState);
+  }
+  
+  // Nasłuchuj zmiany w localStorage między zakładkami
+  window.addEventListener('storage', (event) => {
+    if (event.key === 'bingoStore') {
+      store.setState(JSON.parse(event.newValue));
+    }
+});
+
 // Auth check helper
 export function initAuthCheck() {
     onAuthStateChanged(auth, (user) => {

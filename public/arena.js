@@ -1,3 +1,42 @@
+import { collection, query, where, onSnapshot, doc, updateDoc, getDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+import { initSingInAnonymously, db, STREAMER_NAME, store } from './firebase-config.js';
+
+initSingInAnonymously();
+
+const arenaRef = doc(db, "streamer", STREAMER_NAME, "game_name", "arena");
+const playersRef = collection(db, "streamer", STREAMER_NAME, "game_name", "arena", "players");
+
+const PLAYERS = new Set(["je1lybeann", "p0js"]);
+let IS_ACTIVE = true;
+let ADD_BOTS = false;
+let MAX_PLAYERS = 5;
+
+async function fetchSettingsOnce() {
+    const snapshot = await getDoc(arenaRef);
+    if (snapshot.exists()) {
+        const data = snapshot.data();
+        IS_ACTIVE = true;
+        ADD_BOTS = data.addBots || false;
+        MAX_PLAYERS = data.max_players || 5;
+    }
+}
+
+fetchSettingsOnce();
+
+const unsubscribe = onSnapshot(playersRef, (snapshot) => {
+    snapshot.docChanges().forEach((change) => {
+        if (change.type === "added") {
+            const newPlayer = {
+                id: change.doc.id,
+                ...change.doc.data()
+            };
+            PLAYERS.add(newPlayer.id);
+        }
+    });
+}, (error) => {
+    console.error("Error listening to players:", error);
+});
+
 const GAME_MODES = {
     FREE_FOR_ALL: 'free_for_all',
     TEAM_DEATHMATCH: 'team_deathmatch'
@@ -75,11 +114,9 @@ class Fighter {
         if (this.attackType === 'melee') {
             target.takeDamage(10);
             this.attackCooldown = 5;
-            logBattle(`🥊 ${this.name} smashes ${target.name}!`);
         } else {
             this.shootProjectile(target);
             this.attackCooldown = 25;
-            logBattle(`🏹 ${this.name} shoots at ${target.name}!`);
         }
     }
 
@@ -110,14 +147,14 @@ class Fighter {
         
         // Jellybean body
         div.innerHTML = `
-            <div class="absolute -bottom-4 text-center 
-                        text-white text-xs font-bold bg-black/30 
+            <div class="absolute -bottom-8 text-center 
+                        text-white text-lg font-bold bg-black/30 
                         px-2 rounded-full">
                 ${this.name}
             </div>
             <div class="w-4 h-4 bg-white/30 rounded-full 
                        absolute top-2 left-2"></div>
-            <div class="health-bar absolute bottom-0 w-full h-1 bg-gray-600">
+            <div class="health-bar absolute bottom-0 w-full h-2 bg-gray-600">
                 <div class="health h-full bg-green-400" style="width: ${this.health}%"></div>
             </div>
         `;
@@ -334,40 +371,89 @@ const ARENA_HEIGHT = 600;
 const PLAYER_SIZE = 40;
 
 function startFight() {
+    if (!IS_ACTIVE) return;
     resetArena();
-    const numberOfPlayers = 10;
+
+    // Add real players from the PLAYERS set
+    PLAYERS.forEach(playerId => {
+        addRealPlayer(playerId);
+    });
+
+    // Determine game mode
+    currentGameMode = determineGameMode();
     
-    // Randomly select game mode
-    currentGameMode = Math.random() > 0.7 && numberOfPlayers >= 4 ? 
-        GAME_MODES.TEAM_DEATHMATCH : 
-        GAME_MODES.FREE_FOR_ALL;
+    // Add bots if enabled
+    if (ADD_BOTS) {
+        const botCount = MAX_PLAYERS - PLAYERS.size;
+        if (botCount > 0) {
+            addBots(botCount);
+        }
+    }
 
     // Initialize teams
     if (currentGameMode === GAME_MODES.TEAM_DEATHMATCH) {
-        teams = {
-            red: [],
-            blue: []
-        };
+        teams = { red: [], blue: [] };
+        balanceTeams();
     }
 
-    // Create players
-    for (let i = 0; i < numberOfPlayers; i++) {
-        const x = Math.random() * (ARENA_WIDTH - PLAYER_SIZE);
-        const y = Math.random() * (ARENA_HEIGHT - PLAYER_SIZE);
-        const team = currentGameMode === GAME_MODES.TEAM_DEATHMATCH ? 
-            (i % 2 === 0 ? 'red' : 'blue') : 
-            null;
+    startGameLoop();
+}
+
+function addRealPlayer(playerId) {
+    const fighter = new Fighter(
+        playerId,
+        Math.random() * (ARENA_WIDTH - PLAYER_SIZE),
+        Math.random() * (ARENA_HEIGHT - PLAYER_SIZE),
+        currentGameMode === GAME_MODES.TEAM_DEATHMATCH ? getAutoTeam() : null,
+        currentGameMode === GAME_MODES.FREE_FOR_ALL
+    );
+    
+    fighters.push(fighter);
+    if (fighter.team) teams[fighter.team].push(fighter);
+}
+
+function addBots(quantity) {
+    const existingNames = new Set([...PLAYERS, ...fighters.map(f => f.name)]);
+    
+    for (let i = 0; i < quantity; i++) {
+        let botName;
+        do {
+            botName = `Bot`;
+        } while (existingNames.has(botName));
         
-        const isMeleeOnly = currentGameMode === GAME_MODES.FREE_FOR_ALL;
-        const fighter = new Fighter(`Player ${i+1}`, x, y, team, isMeleeOnly);
+        const fighter = new Fighter(
+            botName,
+            Math.random() * (ARENA_WIDTH - PLAYER_SIZE),
+            Math.random() * (ARENA_HEIGHT - PLAYER_SIZE),
+            currentGameMode === GAME_MODES.TEAM_DEATHMATCH ? getAutoTeam() : null,
+            currentGameMode === GAME_MODES.FREE_FOR_ALL
+        );
         
-        if (team) {
-            teams[team].push(fighter);
-        }
         fighters.push(fighter);
+        if (fighter.team) teams[fighter.team].push(fighter);
     }
+}
 
-    logBattle(`<strong>Mode: ${currentGameMode.replace(/_/g, ' ').toUpperCase()}</strong>`);
+// Helper functions
+function determineGameMode() {
+    return PLAYERS.size >= 4 && Math.random() > 0.5 ? 
+        GAME_MODES.TEAM_DEATHMATCH : 
+        GAME_MODES.FREE_FOR_ALL;
+}
+
+function getAutoTeam() {
+    return teams.red.length <= teams.blue.length ? 'red' : 'blue';
+}
+
+function balanceTeams() {
+    // Balance existing fighters between teams
+    fighters.forEach((fighter, index) => {
+        fighter.team = index % 2 === 0 ? 'red' : 'blue';
+        teams[fighter.team].push(fighter);
+    });
+}
+
+function startGameLoop() {
     fightInterval = setInterval(updateFight, 50);
 }
 
@@ -418,7 +504,6 @@ function updateFight() {
     // Check for deaths and clean up
     fighters = fighters.filter(fighter => {
         if (fighter.health <= 0) {
-            logBattle(`${fighter.name} has been eliminated!`);
             fighter.element.remove();
             if (currentGameMode === GAME_MODES.TEAM_DEATHMATCH) {
                 teams[fighter.team] = teams[fighter.team].filter(f => f !== fighter);
@@ -433,7 +518,6 @@ function updateFight() {
         if (allArchers && fighters.length > 1) {
             fighters.forEach(f => {
                 f.attackType = 'melee';
-                logBattle(`⚔️ ${f.name} transforms into melee fighter!`);
             });
         }
 
@@ -441,7 +525,6 @@ function updateFight() {
             if (teamMembers.length === 1 && teamMembers[0].attackType === 'ranged') {
                 teamMembers[0].attackType = 'melee';
                 teamMembers[0].element.querySelector('.health').classList.add('bg-red-600');
-                logBattle(`⚔️ ${teamMembers[0].name} becomes melee fighter!`);
             }
         });
     }
@@ -455,31 +538,29 @@ function updateFight() {
     }
 }
 
-function logBattle(message) {
-    const log = document.getElementById('battleLog');
-    log.innerHTML += `<div class="text-red-400">${message}</div>`;
-    log.scrollTop = log.scrollHeight;
-}
-
 function endFight(winner, teamName) {
     clearInterval(fightInterval);
     const winnerText = teamName || (winner ? winner.name : 'Nobody');
-    logBattle(`<strong class="text-yellow-400">${winnerText} wins! New game in 4 seconds...</strong>`);
     
     // Auto-restart after 4 seconds
     clearTimeout(restartTimeout);
-    restartTimeout = setTimeout(startFight, 4000);
+    restartTimeout = setTimeout(startFight, 2000);
 }
 
 function resetArena() {
     document.getElementById('arena').innerHTML = '' + 
             `<div class="absolute inset-0 flex flex-col items-center justify-center 
-                text-7xl font-bold text-white/10 
+                text-7xl font-bold text-white/50
                 select-none pointer-events-none">
                 <span>Jellybean</span>
                 <span>Arena</span>
             </div>`;
-    document.getElementById('battleLog').innerHTML = '';
     fighters = [];
+    teams = {};
     if (fightInterval) clearInterval(fightInterval);
 }
+
+startFight();
+
+document.getElementById('startButton').addEventListener('click', startFight);
+document.getElementById('resetButton').addEventListener('click', resetArena);
